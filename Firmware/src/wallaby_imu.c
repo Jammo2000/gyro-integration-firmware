@@ -1,6 +1,6 @@
 #include "wallaby_imu.h"
 #include "wallaby.h"
-
+#include <stdatomic.h>
 #define WALLABY2
 
 #define MPU9250_WHO_AMI_I_REG  0x75
@@ -15,11 +15,12 @@
 #define MPU9250_MAGN_CONTROL1_REG 0x0A // control register 1
 #define MPU9250_MAGN_SENS_SCALING ((float)0.15f)
 #define MPU9250_EXT_SENS_DATA_00_REG 0x49 // magnetometer can be available here
-#define MPU9250_FIFO_COUNT_START_REG 0x72
+#define MPU9250_FIFO_COUNT_H_REG 0x72
+#define MPU9250 FIFO_COUNT_L_REG 0x73
 #define MPU9250_FIFO_REG 0x74
 float MAGN_SCALE_FACTORS[3] = {0.0f, 0.0f, 0.0f};
-uint32_t gyro_total_x, gyro_total_y, gyro_total_z;
-
+int32_t gyro_total_x, gyro_total_y, gyro_total_z; // units of (1/3280) deg
+uint32_t last_gyro_update_time = 0;
 uint8_t IMU_write(uint8_t address, uint8_t val)
 {
     uint8_t ret;
@@ -176,6 +177,7 @@ void readIMU()
     uint16_t accel_x, accel_y, accel_z;
     uint16_t magn_x, magn_y, magn_z;
     uint16_t gyro_x, gyro_y, gyro_z;
+    int32_t gyro_total_x, gyro_total_y, gyro_total_z;
     uint8_t buff[7];
     int i;
 
@@ -204,60 +206,52 @@ void readIMU()
     //debug_printf("accel %d %d %d \n", (int16_t)accel_x, (int16_t)accel_y, (int16_t)accel_z);
     debug_printf("accel %f %f %f\n", ax, ay, az);
 
-    uint16_t fifo_count;
+    uint16_t fifo_byte_count;
     SPI3_CS0_PORT->BSRRH |= SPI3_CS0; // chip select low
-    SPI3_write(0x80 | MPU9250_FIFO_COUNT_START_REG);
-    fifo_count = (SPI3_write(0x00) & 0b11111) << 8;
-    fifo_count |= SPI3_write(0x00);
-    // only read complete xyz data
-    for (i = 0; i < fifo_count/6; i++)
-    {
+    SPI3_write(0x80 | MPU9250_FIFO_COUNT_H_REG);
+    fifo_byte_count = (SPI3_write(0x00) & 0b11111) << 8; // only low 5 bytes defined
+    fifo_byte_count |= SPI3_write(0x00);
+    // fifo_count / 6 to only read complete xyz triples
+    for (i = 0; i < fifo_byte_count/6; i++) {
         SPI3_write(0x80 | MPU9250_FIFO_REG);
-        gyro_x = SPI3_write(MPU9250_FIFO_REG) << 8;
-        gyro_x |= SPI3_write(MPU9250_FIFO_REG);
-        gyro_y = SPI3_write(MPU9250_FIFO_REG) << 8;
-        gyro_y |= SPI3_write(MPU9250_FIFO_REG);
-        gyro_z = SPI3_write(MPU9250_FIFO_REG) << 8;
-        gyro_z |= SPI3_write(MPU9250_FIFO_REG);
-        gyro_total_x += gyro_x;
+        gyro_x = SPI3_write(0x00) << 8;
+        gyro_x |= SPI3_write(0x00);
+        gyro_y = SPI3_write(0x00) << 8;
+        gyro_y |= SPI3_write(0x00);
+        gyro_z = SPI3_write(0x00) << 8;
+        gyro_z |= SPI3_write(0x00);
+        // delta time is always 0.005 s
+        gyro_total_x += (int16_t)gyro_x;
+        gyro_total_y += (int16_t)gyro_y;
+        gyro_total_z += (int16_t)gyro_z;
     }
     
-    SPI3_write(0x80 | MPU9250_FIFO_COUNT_START_REG);
-
     SPI3_CS0_PORT->BSRRL |= SPI3_CS0; // done with chip
 
-    int16_t* gyro_vals = (int16_t*)buff;
 
-    uint32_t dt = usCount - last_gyro_update_time;
-    last_gyro_update_time = usCount;
+    aTxBuffer[REG_RW_GYRO_X_H] = gyro_x >> 8;
+    aTxBuffer[REG_RW_GYRO_X_L] = gyro_x & 0xFF;
+    aTxBuffer[REG_RW_GYRO_Y_H] = gyro_y >> 8;
+    aTxBuffer[REG_RW_GYRO_Y_L] = gyro_y & 0xFF;
+    aTxBuffer[REG_RW_GYRO_Z_H] = gyro_z >> 8;
+    aTxBuffer[REG_RW_GYRO_Z_L] = gyro_z & 0xFF;
 
-    gyro_total_x += (gyro_vals[0] + prev_gyro_x) * (dt / 2);
-    gyro_total_y += (gyro_vals[1] + prev_gyro_y) * (dt / 2);
-    gyro_total_z += (gyro_vals[2] + prev_gyro_z) * (dt / 2);
+    uint16_t gyro_total_x_scaled = gyro_total_x / 200; // 200 bc sample rate 200Hz
+    uint16_t gyro_total_y_scaled = gyro_total_y / 200; 
+    uint16_t gyro_total_z_scaled = gyro_total_z / 200; 
+    
+    aTxBuffer[REG_RW_GYRO_TOTAL_X_H] = gyro_total_x_scaled >> 8;
+    aTxBuffer[REG_RW_GYRO_TOTAL_X_L] = gyro_total_x_scaled & 0xFF;
+    aTxBuffer[REG_RW_GYRO_TOTAL_Y_H] = gyro_total_y_scaled >> 8;
+    aTxBuffer[REG_RW_GYRO_TOTAL_Y_L] = gyro_total_y_scaled & 0xFF;
+    aTxBuffer[REG_RW_GYRO_TOTAL_Z_H] = gyro_total_z_scaled >> 8;
+    aTxBuffer[REG_RW_GYRO_TOTAL_Z_L] = gyro_total_z_scaled & 0xFF;
 
-    prev_gyro_x = gyro_vals[0];
-    prev_gyro_y = gyro_vals[1];
-    prev_gyro_z = gyro_vals[2];
-
-    // we already have these in buff..
-    aTxBuffer[REG_RW_GYRO_X_H] = buff[0];
-    aTxBuffer[REG_RW_GYRO_X_L] = buff[1];
-    aTxBuffer[REG_RW_GYRO_Y_H] = buff[2];
-    aTxBuffer[REG_RW_GYRO_Y_L] = buff[3];
-    aTxBuffer[REG_RW_GYRO_Z_H] = buff[4];
-    aTxBuffer[REG_RW_GYRO_Z_L] = buff[5];
-
-    aTxBuffer[REG_RW_GYRO_TOTAL_X_H] = (gyro_total_x & 0xFF000000) >> 24;
-    aTxBuffer[REG_RW_GYRO_TOTAL_X_L] = (gyro_total_x & 0x00FF0000) >> 16;
-    aTxBuffer[REG_RW_GYRO_TOTAL_Y_H] = (gyro_total_y & 0xFF00) >> 8;
-    aTxBuffer[REG_RW_GYRO_TOTAL_Y_L] = (gyro_total_y & 0x00FF);
-    aTxBuffer[REG_RW_GYRO_TOTAL_Z_H] = (gyro_total_z & 0xFF00) >> 8;
-    aTxBuffer[REG_RW_GYRO_TOTAL_Z_L] = (gyro_total_z & 0x00FF);
     //debug_printf("%d %d %d\r\n", gyro_x, gyro_y, gyro_z);
     // FIXME: scaling
-    float gx = (float)(gyro_vals[0]  / 16.4f);
-    float gy = (float)(gyro_vals[1] / 16.4f);
-    float gz = (float)(gyro_vals[2] / 16.4f);
+    float gx = (float)(gyro_x  / 16.4f);
+    float gy = (float)(gyro_y / 16.4f);
+    float gz = (float)(gyro_z / 16.4f);
     //debug_printf("accel %d %d %d \n", (int16_t)accel_x, (int16_t)accel_y, (int16_t)accel_z);
     debug_printf("gyro %f %f %f\n", gx, gy, gz);
 
