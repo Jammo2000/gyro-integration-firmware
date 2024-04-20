@@ -210,7 +210,16 @@
 #define REG_W_MOT_3_GOAL_B1    151
 #define REG_W_MOT_3_GOAL_B0    152
 
-#define REG_ALL_COUNT      153
+// READ/write gyro integrations
+
+#define REG_RW_GYRO_TOTAL_X_H    153
+#define REG_RW_GYRO_TOTAL_X_L    154
+#define REG_RW_GYRO_TOTAL_Y_H    155
+#define REG_RW_GYRO_TOTAL_Y_L    156
+#define REG_RW_GYRO_TOTAL_Z_H    157
+#define REG_RW_GYRO_TOTAL_Z_L    158
+
+#define REG_ALL_COUNT      159
 
 
 #endif // #defineWALLABY_SPI_R1_H_
