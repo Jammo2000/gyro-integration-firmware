@@ -442,7 +442,7 @@ void mpu9250_sample_low_pass_filter(mpu9250_sample *const acc, const mpu9250_sam
 uint8_t mpu9250_accel_sample_read(mpu9250 *const device, mpu9250_sample *const accel_sample);
 
 #ifdef MPU9250_WALLABY
-void mpu9250_accel_sample_write_regs(mpu9250 *const device, const mpu9250_sample *const accel_sample, volatile uint8_t *const regs);
+void mpu9250_accel_sample_write_regs(const mpu9250_sample *const accel_sample, volatile uint8_t *const regs);
 #endif
 
 // Gyro
@@ -450,7 +450,9 @@ void mpu9250_accel_sample_write_regs(mpu9250 *const device, const mpu9250_sample
 uint8_t mpu9250_gyro_sample_read(mpu9250 *const device, mpu9250_sample *const gyro_sample);
 
 #ifdef MPU9250_WALLABY
-void mpu9250_gyro_sample_write_regs(mpu9250 *const device, const mpu9250_sample *const gyro_sample, volatile uint8_t *const regs);
+void mpu9250_gyro_sample_write_regs(const mpu9250_sample *const gyro_sample, volatile uint8_t *const regs);
+
+void mpu9250_gyro_integrated_write_regs(int32_t x, int32_t y, int32_t z, volatile uint8_t *const regs);
 #endif
 
 // Magnetometer
@@ -458,7 +460,7 @@ void mpu9250_gyro_sample_write_regs(mpu9250 *const device, const mpu9250_sample 
 uint8_t mpu9250_magneto_sample_read(mpu9250 *const device, mpu9250_sample *const magneto_sample);
 
 #ifdef MPU9250_WALLABY
-void mpu9250_magneto_sample_write_regs(mpu9250 *const device, const mpu9250_sample *const magneto_sample, volatile uint8_t *const regs);
+void mpu9250_magneto_sample_write_regs(const mpu9250_sample *const magneto_sample, volatile uint8_t *const regs);
 #endif
 
 // FIFO_EN

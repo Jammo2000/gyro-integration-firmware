@@ -22,7 +22,9 @@
 #define MPU9250_EXT_SENS_DATA_00_REG 0x49 // magnetometer can be available here
 
 float MAGN_SCALE_FACTORS[3] = {0.0f, 0.0f, 0.0f};
-
+int32_t gyro_total_x = 0;
+int32_t gyro_total_y = 0;
+int32_t gyro_total_z = 0;
 mpu9250 *mpu;
 const mpu9250_fifo_en fifo_en = {
   .temp_fifo_en = 0,
@@ -383,7 +385,16 @@ void wallaby_imu_update()
 
   mpu9250_fifo_sample sample;
   uint16_t count = 0;
-  while (mpu9250_fifo_sample_read(mpu, &fifo_en, &sample)) ++count;
+
+
+
+  while (mpu9250_fifo_sample_read(mpu, &fifo_en, &sample))
+  {
+    gyro_total_x += sample.gyro_sample->x;
+    gyro_total_y += sample.gyro_sample->y;
+    gyro_total_z += sample.gyro_sample->z;
+    count++;
+  }
 
   if (count != 0)
   {
@@ -391,13 +402,12 @@ void wallaby_imu_update()
     latest_gyro_sample = *sample.gyro_sample;
   }
 
-  mpu9250_accel_sample_write_regs(mpu, &latest_accel_sample, aTxBuffer);
-  mpu9250_gyro_sample_write_regs(mpu, &latest_gyro_sample, aTxBuffer);
-
+  mpu9250_accel_sample_write_regs(&latest_accel_sample, aTxBuffer);
+  mpu9250_gyro_sample_write_regs(&latest_gyro_sample, aTxBuffer);
+  mpu9250_gyro_integrated_write_regs(gyro_total_x, gyro_total_y, gyro_total_z, aTxBuffer);
   mpu9250_sample magneto_sample;
-  magneto_sample.x = mpu9250_fifo_en_packet_size(&fifo_en) << 4;
-  magneto_sample.y = gyro_acc_y_avg;
-  magneto_sample.z = gyro_acc_z_avg;
-  mpu9250_magneto_sample_write_regs(mpu, &magneto_sample, aTxBuffer);
+  if (mpu9250_magneto_sample_read(mpu, &magneto_sample))
+  {
+    mpu9250_magneto_sample_write_regs(&magneto_sample, aTxBuffer);
+  }
 }
-

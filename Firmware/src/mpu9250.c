@@ -593,7 +593,6 @@ uint8_t mpu9250_accel_sample_read(mpu9250 *const device, mpu9250_sample *const a
 #ifdef MPU9250_WALLABY
 
 void mpu9250_accel_sample_write_regs(
-  mpu9250 *const device,
   const mpu9250_sample *const accel_sample,
   volatile uint8_t *const regs
 )
@@ -625,7 +624,6 @@ uint8_t mpu9250_gyro_sample_read(mpu9250 *const device, mpu9250_sample *const gy
 #ifdef MPU9250_WALLABY
 
 void mpu9250_gyro_sample_write_regs(
-  mpu9250 *const device,
   const mpu9250_sample *const gyro_sample,
   volatile uint8_t *const regs
 )
@@ -638,6 +636,23 @@ void mpu9250_gyro_sample_write_regs(
   regs[REG_RW_GYRO_Z_L] = (gyro_sample->z & 0x00FF);
 }
 
+void mpu9250_gyro_integrated_write_regs(int32_t x, int32_t y, int32_t z, volatile uint8_t *const regs){
+  regs[REG_RW_GYRO_TOTAL_X_B3] = x >> 24;
+  regs[REG_RW_GYRO_TOTAL_X_B2] = x >> 16;
+  regs[REG_RW_GYRO_TOTAL_X_B1] = x >> 8;
+  regs[REG_RW_GYRO_TOTAL_X_B0] = x;
+
+  regs[REG_RW_GYRO_TOTAL_Y_B3] = y >> 24;
+  regs[REG_RW_GYRO_TOTAL_Y_B2] = y >> 16;
+  regs[REG_RW_GYRO_TOTAL_Y_B1] = y >> 8;
+  regs[REG_RW_GYRO_TOTAL_Y_B0] = y;
+
+  regs[REG_RW_GYRO_TOTAL_Z_B3] = z >> 24;
+  regs[REG_RW_GYRO_TOTAL_Z_B2] = z >> 16;
+  regs[REG_RW_GYRO_TOTAL_Z_B1] = z >> 8;
+  regs[REG_RW_GYRO_TOTAL_Z_B0] = z;
+  
+}
 #endif
 
 // Magnetometer
@@ -673,7 +688,6 @@ uint8_t mpu9250_magneto_sample_read(mpu9250 *const device, mpu9250_sample *const
 #ifdef MPU9250_WALLABY
 
 void mpu9250_magneto_sample_write_regs(
-  mpu9250 *const device,
   const mpu9250_sample *const magneto_sample,
   volatile uint8_t *const regs
 )
